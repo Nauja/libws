@@ -10,6 +10,18 @@ on:
       - "**.md"
       - "LICENSE"
 
+env:
+  LIBWEBSOCKETS_URL: https://libwebsockets.org/repo/libwebsockets
+  LIBWEBSOCKETS_REVISION: b0a749c8e7a8294b68581ce4feac0e55045eb00b
+  LIBWEBSOCKETS_FLAGS: |
+    -DLWS_WITHOUT_TESTAPPS=On
+    -DLWS_WITHOUT_TEST_SERVER=On
+    -DLWS_WITHOUT_TEST_SERVER_EXTPOLL=On
+    -DLWS_WITHOUT_TEST_PING=On
+    -DLWS_WITHOUT_TEST_CLIENT=On
+    -DLWS_WITH_MINIMAL_EXAMPLES=Off
+    -DLWS_WITH_SSL=Off
+
 jobs:
   amd64_linux_clang:
     runs-on: ubuntu-latest
@@ -21,13 +33,27 @@ jobs:
           submodules: recursive
       - name: Install Dependencies
         run: sudo apt install -y make clang
+      - name: Install libwebsockets
+        run: |
+          git clone $LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. $LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          sudo cmake --install .
       - run: clang --version
-      - name: Build lbws
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake ..
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"
   amd64_linux_gcc:
     runs-on: ubuntu-latest
     env:
@@ -38,13 +64,27 @@ jobs:
           submodules: recursive
       - name: Install Dependencies
         run: sudo apt install -y make gcc
+      - name: Install libwebsockets
+        run: |
+          git clone $LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. $LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          sudo cmake --install .
       - run: gcc --version
-      - name: Build lbws
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake ..
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"
   amd64_macos_clang:
     runs-on: macos-latest
     env:
@@ -53,13 +93,27 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+      - name: Install libwebsockets
+        run: |
+          git clone $LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. $LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          cmake --install .
       - run: cc --version
-      - name: Build lbws
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake ..
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"
   amd64_macos_gcc:
     runs-on: macos-latest
     env:
@@ -70,17 +124,32 @@ jobs:
           submodules: recursive
       - name: Install Dependencies
         run: brew install gcc@11
+      - name: Install libwebsockets
+        run: |
+          git clone $LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. $LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          cmake --install .
       - run: gcc-11 --version
-      - name: Build lbws
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake ..
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"
   amd64_windows_clang:
     runs-on: windows-2019
     env:
       CC: clang
+      LIBWEBSOCKETS_ROOT: "$env:GITHUB_WORKSPACE\\libwebsockets\\build"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -94,26 +163,60 @@ jobs:
           pacman --noconfirm -S mingw64/mingw-w64-x86_64-clang
           echo "C:\\msys64\\mingw64\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - run: clang --version
-      - name: Build lbws
+      - name: Install libwebsockets
+        run: |
+          git clone $env:LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $env:LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. -G "MinGW Makefiles" $env:LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          cmake --install .
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake .. -G "MinGW Makefiles"
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"
   amd64_windows_gcc:
     runs-on: windows-2019
     env:
       CC: gcc
+      LIBWEBSOCKETS_ROOT: "$env:GITHUB_WORKSPACE/libwebsockets/build"
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
+      - run: echo "C:\\msys64\\usr\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Install Dependencies
-        run: echo "C:\\msys64\\usr\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: |
+          pacman --version
+          pacman -Sy
+          pacman --noconfirm -S pacman-mirrors
+          pacman --noconfirm -S mingw-w64-x86_64-libwebsockets
+          echo "C:\\msys64\\usr\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - run: gcc --version
-      - name: Build lbws
+      - name: Install libwebsockets
+        run: |
+          git clone $env:LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $env:LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. -G "MinGW Makefiles" $env:LIBWEBSOCKETS_FLAGS
+          cmake --build .
+      - name: Build libws
         run: |
           mkdir -p build
           cd build
           cmake .. -G "MinGW Makefiles"
           cmake --build .
+      - name: Test libws
+        run: |
+          cd build
+          cmake --build . --target test ARGS="-V"

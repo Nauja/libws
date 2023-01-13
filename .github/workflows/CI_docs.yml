@@ -1,0 +1,53 @@
+name: CI docs
+
+on:
+  push:
+    paths-ignore:
+      - "LICENSE"
+  pull_request:
+    paths-ignore:
+      - "LICENSE"
+
+env:
+  LIBWEBSOCKETS_URL: https://libwebsockets.org/repo/libwebsockets
+  LIBWEBSOCKETS_REVISION: b0a749c8e7a8294b68581ce4feac0e55045eb00b
+  LIBWEBSOCKETS_FLAGS: |
+    -DLWS_WITHOUT_TESTAPPS=On
+    -DLWS_WITHOUT_TEST_SERVER=On
+    -DLWS_WITHOUT_TEST_SERVER_EXTPOLL=On
+    -DLWS_WITHOUT_TEST_PING=On
+    -DLWS_WITHOUT_TEST_CLIENT=On
+    -DLWS_WITH_MINIMAL_EXAMPLES=Off
+    -DLWS_WITH_SSL=Off
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz python3-pip
+          pip install breathe sphinx
+          pip install -r docs/requirements.txt
+      - name: Install libwebsockets
+        run: |
+          git clone $LIBWEBSOCKETS_URL
+          cd libwebsockets
+          git reset --hard $LIBWEBSOCKETS_REVISION
+          mkdir build
+          cd build
+          cmake .. $LIBWEBSOCKETS_FLAGS
+          cmake --build .
+          sudo cmake --install .
+      - name: Build docs
+        run: |
+          EVENT_CMAKE_OPTIONS="-DLIBWS_DOXYGEN=ON"
+          mkdir -p build
+          cd build
+          cmake .. $EVENT_CMAKE_OPTIONS || (rm -rf * && cmake .. $EVENT_CMAKE_OPTIONS)
+          cmake --build .
+          make
