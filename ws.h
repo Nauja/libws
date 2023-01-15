@@ -279,7 +279,7 @@ extern "C"
     LIBWS_PUBLIC(void)
     ws_delete(struct ws *ws);
 
-    LIBWS_PUBLIC(size_t)
+    LIBWS_PUBLIC(void)
     ws_send(struct ws_client *client, const void *buf, size_t size);
 
     LIBWS_PUBLIC(size_t)

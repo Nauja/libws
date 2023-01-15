@@ -1,0 +1,98 @@
+.. -*- coding: utf-8 -*-
+.. _examples:
+
+===============
+Advanced Usages
+===============
+
+Those are more advanced usages for experienced users.
+
+Build as a Static Library with CMake
+------------------------------------
+
+You can build libws as a static library by passing ``-DLIBWS_STATIC=true`` as an argument to cmake:
+
+.. code-block::
+
+    mkdir build
+    cd build
+    cmake .. -DLIBWS_STATIC=true
+    cmake --build .
+
+This will generate ``libws.a`` in the ``build`` directory.
+
+Build the Documentation with CMake
+----------------------------------
+
+To build the documentation you will first have to install `Doxygen <https://www.doxygen.nl>`_ and `Python <https://www.python.org/>`_:
+
+.. code-block::
+
+    apt-get install doxygen graphviz python3 python3-pip
+
+On Windows, install them via the binaries.
+
+Then do the following commands to install `Sphinx <https://www.sphinx-doc.org/en/master/usage/installation.html>`_ and its dependencies:
+
+.. code-block::
+
+    python3 -m pip install sphinx-build
+    python3 -m pip install -r docs/requirements.txt
+
+Now you can build the documentation with:
+
+.. code-block::
+
+    mkdir build
+    cd build
+    cmake .. -DLIBWS_DOXYGEN=true
+    cmake --build .
+
+The documentation is generated in ``build/docs/sphinx/index.html``.
+
+Custom malloc/free with Defines
+-------------------------------
+
+You can define the two macros ``LIBWS_MALLOC`` and ``LIBWS_FREE`` in your code to
+provide custom malloc or free functions at compile time for custom memory management:
+
+.. code-block:: c
+
+    void* my_malloc(size_t size)
+    {
+        // do something
+    }
+
+    void my_free(void* ptr)
+    {
+        // do something
+    }
+
+    #define LIBWS_MALLOC my_malloc
+    #define LIBWS_FREE my_free
+
+Custom malloc/free with Hooks
+-----------------------------
+
+Alternatively you can use ``ws_init_hooks`` to register custom malloc or free functions
+at runtime for custom memory management:
+
+.. code-block:: c
+
+    void* my_malloc(size_t size)
+    {
+        // do something
+    }
+
+    void my_free(void* ptr)
+    {
+        // do something
+    }
+
+    int main(void)
+    {
+        struct ws_hooks my_hooks = { my_malloc, my_free };
+        ws_init_hooks(&my_hooks);
+
+        return 0;
+    }

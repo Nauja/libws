@@ -1,6 +1,6 @@
 #include "ws.h"
 
-#include <libwebsockets.h>
+#include "libwebsockets.h"
 
 #if HAVE_STDLIB_H
 #include <stdlib.h>
@@ -20,7 +20,9 @@ typedef struct lws_protocol_vhost_options lws_protocol_vhost_options;
 typedef struct lws_context_creation_info lws_context_creation_info;
 typedef struct lws_client_connect_info lws_client_connect_info;
 typedef struct lws_sorted_usec_list lws_sorted_usec_list;
+
 typedef enum ws_event ws_event;
+typedef struct ws_hooks ws_hooks;
 typedef struct ws_connect_options ws_connect_options;
 typedef struct ws_listen_options ws_listen_options;
 typedef int (*ws_callback)(struct ws_client *client, enum ws_event event, void *user);
@@ -30,6 +32,7 @@ typedef int (*ws_callback)(struct ws_client *client, enum ws_event event, void *
 #define LIBWS_TRUE 1
 #define LIBWS_FALSE 0
 #define LIBWS_BUFFER_SIZE 1024
+#define LIBWS_UNUSED(x) (void)(x)
 
 #if defined(_MSC_VER)
 /* work around MSVC error C2322: '...' address of dllimport '...' is not static */
@@ -86,10 +89,10 @@ typedef struct ws_client
 
 typedef struct ws_vhd
 {
-	struct lws_context *context;
-	struct lws_vhost *vhost;
-	struct lws *client_wsi;
-	ws *ws;
+	lws_context *context;
+	lws_vhost *vhost;
+	lws *client_wsi;
+	struct ws *ws;
 
 	lws_sorted_usec_list_t sul;
 
@@ -324,6 +327,11 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
 static int ws_server_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
+	LIBWS_UNUSED(wsi);
+	LIBWS_UNUSED(reason);
+	LIBWS_UNUSED(user);
+	LIBWS_UNUSED(in);
+	LIBWS_UNUSED(len);
 	return 0;
 }
 
@@ -342,7 +350,7 @@ static struct ws *ws_create(void)
 LIBWS_PUBLIC(struct ws *)
 ws_connect(const ws_connect_options *options)
 {
-	struct ws *ws = ws_create(options);
+	struct ws *ws = ws_create();
 	if (!ws)
 	{
 		return NULL;
@@ -374,7 +382,7 @@ ws_connect(const ws_connect_options *options)
 LIBWS_PUBLIC(struct ws *)
 ws_listen(const ws_listen_options *options)
 {
-	struct ws *ws = ws_create(options);
+	struct ws *ws = ws_create();
 	if (!ws)
 	{
 		return NULL;
@@ -401,7 +409,7 @@ ws_listen(const ws_listen_options *options)
 	return ws;
 }
 
-LIBWS_PUBLIC(size_t)
+LIBWS_PUBLIC(void)
 ws_send(ws_client *client, const void *buf, size_t size)
 {
 	if (!(int)lws_ring_get_count_free_elements(client->send_queue))
@@ -412,7 +420,7 @@ ws_send(ws_client *client, const void *buf, size_t size)
 
 	if (size > msg.size)
 	{
-		lwsl_err("Packet too large to send %d > %s, try increase LIBWS_BUFFER_SIZE\n", size, msg.size);
+		lwsl_err("Packet too large to send %ld > %ld, try increase LIBWS_BUFFER_SIZE\n", size, msg.size);
 		return;
 	}
 
