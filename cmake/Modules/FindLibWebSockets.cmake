@@ -1,15 +1,20 @@
 # This module tries to find libWebsockets library and include files
 #
+# LIBWEBSOCKETS_ROOT_DIR, path to install of libwebsockets
 # LIBWEBSOCKETS_INCLUDE_DIR, path where to find libwebsockets.h
 # LIBWEBSOCKETS_LIBRARY_DIR, path where to find libwebsockets.so
 # LIBWEBSOCKETS_LIBRARIES, the library to link against
 # LIBWEBSOCKETS_FOUND, If false, do not try to use libWebSockets
 #
 # This currently works probably only for Linux
+IF ( NOT DEFINED LIBWEBSOCKETS_ROOT_DIR )
+SET ( LIBWEBSOCKETS_ROOT_DIR $ENV{LIBWEBSOCKETS_ROOT_DIR} )
+ENDIF ( NOT DEFINED LIBWEBSOCKETS_ROOT_DIR )
 
 FIND_PATH ( LIBWEBSOCKETS_INCLUDE_DIR libwebsockets.h
     HINTS
-        "${LIBWEBSOCKETS_ROOT}/include"
+        "${LIBWEBSOCKETS_ROOT_DIR}"
+        "${LIBWEBSOCKETS_ROOT_DIR}/include"
     PATHS
         /usr/local/include
         /usr/include
@@ -17,7 +22,8 @@ FIND_PATH ( LIBWEBSOCKETS_INCLUDE_DIR libwebsockets.h
 
 FIND_LIBRARY ( LIBWEBSOCKETS_LIBRARIES websockets
     HINTS
-        "${LIBWEBSOCKETS_ROOT}"
+        "${LIBWEBSOCKETS_ROOT_DIR}"
+        "${LIBWEBSOCKETS_ROOT_DIR}/lib"
     PATHS
         /usr/local/lib
         /usr/lib

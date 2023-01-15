@@ -58,6 +58,12 @@ option(LIBWS_SHARED "Build a shared library" ON)
 option(LIBWS_UNIT_TESTING "Unit Tests Enabled" ON)
 option(LIBWS_DOXYGEN "Docs Enabled" OFF)
 
+#
+# TLS library options... all except mbedTLS are basically OpenSSL variants.
+#
+option(LWS_WITH_SSL "Include SSL support (defaults to OpenSSL or similar, mbedTLS if LWS_WITH_MBEDTLS is set)" ON)
+option(LWS_WITH_TLS "Include TLS support (defaults to OpenSSL or similar, mbedTLS if LWS_WITH_MBEDTLS is set)" ON)
+
 # disallow in-source build
 include(MacroEnsureOutOfSourceBuild)
 macro_ensure_out_of_source_build("${PROJECT_NAME} requires an out of source build. Please create a separate build directory and run 'cmake /path/to/${PROJECT_NAME} [options]' there.")
@@ -66,6 +72,12 @@ message("Building for target : ${CMAKE_SYSTEM_NAME}")
 message("PROJECT_VERSION: ${LIBWS_VERSION}")
 message("VERSION_HASH: ${VERSION_HASH}")
 configure_file(ws.h.cmake ${CMAKE_CURRENT_SOURCE_DIR}/ws.h)
+
+# openssl
+
+find_package(OpenSSL)
+message("OPENSSL_FOUND=${OPENSSL_FOUND}")
+message("OPENSSL_INCLUDE_DIR=${OPENSSL_INCLUDE_DIR}")
 
 # libwebsockets
 
@@ -92,7 +104,9 @@ if (LIBWS_SHARED)
     target_compile_options(${LIBWS_LIB}
                             PRIVATE
                                 ${LIBWS_COMPILE_FLAGS}
-                                -DHAVE_CONFIG_H)
+                                -DHAVE_CONFIG_H
+                                -DLWS_WITH_SSL=${LWS_WITH_SSL}
+                                -DLWS_WITH_TLS=${LWS_WITH_TLS})
                     
 
     target_link_libraries(${LIBWS_LIB} PRIVATE ${LWS_LINKS})
@@ -100,6 +114,7 @@ if (LIBWS_SHARED)
     target_include_directories(${LIBWS_LIB}
                                 SYSTEM PRIVATE
                                     ${CMAKE_CURRENT_BINARY_DIR}
+                                    ${OPENSSL_INCLUDE_DIR}
                                     ${LWS_INCLUDE_DIRS}
                                 PUBLIC
                                     ${CMAKE_CURRENT_SOURCE_DIR})
@@ -122,7 +137,9 @@ if (LIBWS_STATIC)
                            PRIVATE
                                ${LIBWS_COMPILE_FLAGS}
                                -DHAVE_CONFIG_H
-                               -DLIBWS_HIDE_SYMBOLS)
+                               -DLIBWS_HIDE_SYMBOLS
+                               -DLWS_WITH_SSL=${LWS_WITH_SSL}
+                               -DLWS_WITH_TLS=${LWS_WITH_TLS})
                               
     target_link_libraries(${LIBWS_STATIC_LIB} PRIVATE ${LWS_LINKS})
 
@@ -130,6 +147,7 @@ if (LIBWS_STATIC)
                                SYSTEM
                                PRIVATE
                                    ${CMAKE_CURRENT_BINARY_DIR}
+                                   ${OPENSSL_INCLUDE_DIR}
                                    ${LWS_INCLUDE_DIRS}
                                PUBLIC
                                     ${CMAKE_CURRENT_SOURCE_DIR})
