@@ -38,7 +38,7 @@ if read_the_docs_build:
     output_dir = "build"
     configureDoxyfile(input_dir, output_dir)
     subprocess.call("doxygen", shell=True)
-    breathe_projects["libfs"] = output_dir + "/xml"
+    breathe_projects["libws"] = output_dir + "/xml"
 
 # -- Project information -----------------------------------------------------
 
@@ -76,4 +76,4 @@ html_theme = "sphinx_rtd_theme"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-breathe_default_project = "libfw"
+breathe_default_project = "libws"
