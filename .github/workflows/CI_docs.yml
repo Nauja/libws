@@ -9,20 +9,13 @@ on:
       - "LICENSE"
 
 env:
-  LIBWEBSOCKETS_URL: https://libwebsockets.org/repo/libwebsockets
-  LIBWEBSOCKETS_REVISION: b0a749c8e7a8294b68581ce4feac0e55045eb00b
-  LIBWEBSOCKETS_FLAGS: |
-    -DLWS_WITHOUT_TESTAPPS=On
-    -DLWS_WITHOUT_TEST_SERVER=On
-    -DLWS_WITHOUT_TEST_SERVER_EXTPOLL=On
-    -DLWS_WITHOUT_TEST_PING=On
-    -DLWS_WITHOUT_TEST_CLIENT=On
-    -DLWS_WITH_MINIMAL_EXAMPLES=Off
-    -DLWS_WITH_SSL=Off
+  LINUX_BREW: /home/linuxbrew/.linuxbrew/bin/brew
 
 jobs:
   linux:
     runs-on: ubuntu-latest
+    env:
+      LIBWEBSOCKETS_ROOT_DIR: /home/linuxbrew/.linuxbrew/Cellar/libwebsockets/4.3.2
     steps:
       - uses: actions/checkout@v3
         with:
@@ -33,21 +26,12 @@ jobs:
           sudo apt-get install -y doxygen graphviz python3-pip
           pip install breathe sphinx
           pip install -r docs/requirements.txt
-      - name: Install libwebsockets
-        run: |
-          git clone $LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. $LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          sudo cmake --install .
+          $LINUX_BREW install libwebsockets
       - name: Build docs
         run: |
           EVENT_CMAKE_OPTIONS="-DLIBWS_DOXYGEN=ON"
           mkdir -p build
           cd build
-          cmake .. $EVENT_CMAKE_OPTIONS || (rm -rf * && cmake .. $EVENT_CMAKE_OPTIONS)
+          cmake ..
           cmake --build .
           make

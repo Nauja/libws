@@ -11,6 +11,7 @@ on:
       - "LICENSE"
 
 env:
+  LINUX_BREW: /home/linuxbrew/.linuxbrew/bin/brew
   LIBWEBSOCKETS_URL: https://libwebsockets.org/repo/libwebsockets
   LIBWEBSOCKETS_REVISION: b0a749c8e7a8294b68581ce4feac0e55045eb00b
   LIBWEBSOCKETS_FLAGS: |
@@ -27,22 +28,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CC: clang
+      LIBWEBSOCKETS_ROOT_DIR: /home/linuxbrew/.linuxbrew/Cellar/libwebsockets/4.3.2
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Dependencies
-        run: sudo apt install -y make clang
-      - name: Install libwebsockets
         run: |
-          git clone $LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. $LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          sudo cmake --install .
+          sudo apt install -y make clang
+          $LINUX_BREW install libwebsockets
       - run: clang --version
       - name: Build libws
         run: |
@@ -58,22 +52,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CC: gcc
+      LIBWEBSOCKETS_ROOT_DIR: /home/linuxbrew/.linuxbrew/Cellar/libwebsockets/4.3.2
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Dependencies
-        run: sudo apt install -y make gcc
-      - name: Install libwebsockets
         run: |
-          git clone $LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. $LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          sudo cmake --install .
+          sudo apt install -y make gcc
+          $LINUX_BREW install libwebsockets
       - run: gcc --version
       - name: Build libws
         run: |
@@ -89,26 +76,21 @@ jobs:
     runs-on: macos-latest
     env:
       CC: clang
+      LIBWEBSOCKETS_ROOT_DIR: /usr/local/Cellar/libwebsockets/4.3.2
+      OPENSSL_ROOT_DIR: /usr/local/opt/openssl@3
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - name: Install libwebsockets
+      - name: Install Dependencies
         run: |
-          git clone $LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. $LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          cmake --install .
+          brew install openssl libwebsockets
       - run: cc --version
       - name: Build libws
         run: |
           mkdir -p build
           cd build
-          cmake ..
+          cmake .. -DLWS_WITH_TLS=Off
           cmake --build .
       - name: Test libws
         run: |
@@ -118,28 +100,21 @@ jobs:
     runs-on: macos-latest
     env:
       CC: gcc-11
+      LIBWEBSOCKETS_ROOT_DIR: /usr/local/Cellar/libwebsockets/4.3.2
+      OPENSSL_ROOT_DIR: /usr/local/opt/openssl@3
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Dependencies
-        run: brew install gcc@11
-      - name: Install libwebsockets
         run: |
-          git clone $LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. $LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          cmake --install .
+          brew install gcc@11 openssl libwebsockets
       - run: gcc-11 --version
       - name: Build libws
         run: |
           mkdir -p build
           cd build
-          cmake ..
+          cmake .. -DLWS_WITH_TLS=Off
           cmake --build .
       - name: Test libws
         run: |
@@ -149,7 +124,7 @@ jobs:
     runs-on: windows-2019
     env:
       CC: clang
-      LIBWEBSOCKETS_ROOT: "$env:GITHUB_WORKSPACE\\libwebsockets\\build"
+      LIBWEBSOCKETS_ROOT_DIR: C:\\msys64\\usr
     steps:
       - uses: actions/checkout@v3
         with:
@@ -160,19 +135,9 @@ jobs:
           pacman --version
           pacman -Sy
           pacman --noconfirm -S pacman-mirrors
-          pacman --noconfirm -S mingw64/mingw-w64-x86_64-clang
+          pacman --noconfirm -S mingw64/mingw-w64-x86_64-clang mingw64/mingw-w64-x86_64-libwebsockets
           echo "C:\\msys64\\mingw64\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - run: clang --version
-      - name: Install libwebsockets
-        run: |
-          git clone $env:LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $env:LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. -G "MinGW Makefiles" $env:LIBWEBSOCKETS_FLAGS
-          cmake --build .
-          cmake --install .
       - name: Build libws
         run: |
           mkdir -p build
@@ -187,7 +152,7 @@ jobs:
     runs-on: windows-2019
     env:
       CC: gcc
-      LIBWEBSOCKETS_ROOT: "$env:GITHUB_WORKSPACE/libwebsockets/build"
+      LIBWEBSOCKETS_ROOT_DIR: C:\\msys64\\usr
     steps:
       - uses: actions/checkout@v3
         with:
@@ -199,17 +164,8 @@ jobs:
           pacman -Sy
           pacman --noconfirm -S pacman-mirrors
           pacman --noconfirm -S mingw-w64-x86_64-libwebsockets
-          echo "C:\\msys64\\usr\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "C:\\msys64\\mingw64\\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - run: gcc --version
-      - name: Install libwebsockets
-        run: |
-          git clone $env:LIBWEBSOCKETS_URL
-          cd libwebsockets
-          git reset --hard $env:LIBWEBSOCKETS_REVISION
-          mkdir build
-          cd build
-          cmake .. -G "MinGW Makefiles" $env:LIBWEBSOCKETS_FLAGS
-          cmake --build .
       - name: Build libws
         run: |
           mkdir -p build
