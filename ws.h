@@ -244,13 +244,31 @@ extern "C"
     };
 
     /**
-     * Connect to a server.
+     * Connects to a server.
      *
      * @code{.c}
+     * int client_callback(struct ws_client *client, enum ws_event event, void *user)
+     * {
+     *   switch(event)
+     *   {
+     *   case LIBWS_EVENT_CONNECTED:
+     *     // connected to server
+     *     break;
+     *   case LIBWS_EVENT_RECEIVED:
+     *     // received data from server
+     *     break;
+     *   default:
+     *     break;
+     *   }
+     *
+     *   return 0;
+     * }
+     * 
      * struct ws_connect_options options;
      * options.context = context;
      * options.host = "a.b.c.d";
      * options.port = 1234;
+     * options.callback = client_callback;
      * struct ws* ws = ws_connect(&options);
      * @endcode
      *
@@ -261,12 +279,30 @@ extern "C"
     ws_connect(const struct ws_connect_options *options);
 
     /**
-     * Listen for connections.
+     * Listens for connections.
      *
      * @code{.c}
+     * int server_callback(struct ws_client *client, enum ws_event event, void *user)
+     * {
+     *   switch(event)
+     *   {
+     *   case LIBWS_EVENT_CONNECTED:
+     *     // new client connected
+     *     break;
+     *   case LIBWS_EVENT_RECEIVED:
+     *     // received data from client
+     *     break;
+     *   default:
+     *     break;
+     *   }
+     *
+     *   return 0;
+     * }
+     * 
      * struct ws_listen_options options;
      * options.context = context;
      * options.port = 1234;
+     * options.callback = server_callback;
      * struct ws* ws = ws_connect(&options);
      * @endcode
      *
@@ -276,12 +312,79 @@ extern "C"
     LIBWS_PUBLIC(struct ws *)
     ws_listen(const struct ws_listen_options *options);
 
+    /**
+     * Closes and deletes a websocket.
+     *
+     * @param[in] ws Some websocket
+     */
     LIBWS_PUBLIC(void)
     ws_delete(struct ws *ws);
 
+    /**
+     * Returns the port a websocket is connected or listens to.
+     *
+     * @return Port number.
+     */
+    LIBWS_PUBLIC(int)
+    ws_get_port(struct ws* ws);
+
+    /**
+     * Returns a client on the websocket by index.
+     *
+     * @param[in] ws Some websocket
+     * @param[in] index Index of the client
+     * @return Client at index, or NULL.
+     */
+    LIBWS_PUBLIC(struct ws_client*)
+    ws_get_client(struct ws* ws, size_t index);
+
+    /**
+     * Returns the number of clients on the websocket.
+     *
+     * @param[in] ws Some websocket
+     * @return Number of clients.
+     */
+    LIBWS_PUBLIC(size_t)
+    ws_get_num_clients(const struct ws* ws);
+
+    /**
+     * Returns the websocket associated with a client.
+     *
+     * @param[in] client Some client
+     * @return Associated websocket.
+     */
+    LIBWS_PUBLIC(struct ws*)
+    ws_get_websocket(const struct ws_client* client);
+
+    /**
+     * Sends data to a client.
+     *
+     * @code{.c}
+     * const char *buf = "hello";
+     * ws_send(client, (const void*)buf, 5);
+     * @endcode
+     *
+     * @param[in] client Some client
+     * @param[in] buf Buffer containing data to send
+     * @param[in] size Buffer size
+     * @return Number of bytes sent.
+     */
     LIBWS_PUBLIC(void)
     ws_send(struct ws_client *client, const void *buf, size_t size);
 
+    /**
+     * Receives data from a client.
+     *
+     * @code{.c}
+     * char buf[5];
+     * ws_receive(client, (void*)&buf[0], 5);
+     * @endcode
+     *
+     * @param[in] client Some client
+     * @param[in] buf Buffer for storing received data
+     * @param[in] size Buffer size
+     * @return Number of bytes received.
+     */
     LIBWS_PUBLIC(size_t)
     ws_receive(struct ws_client *client, void *buf, size_t size);
 

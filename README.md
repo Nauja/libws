@@ -9,7 +9,11 @@ Wrapper over [libwebsockets](https://libwebsockets.org/) for websockets.
 
 ## Why
 
-WIP
+libwebsockets is a popular library with a generic interface for http/1, http/2, websockets, MQTT,
+and while it's great to have a generic interface, it also makes it more complicated to get started
+if you only want to use it for websockets. So, this library aims to provide a simpler interface
+over libwebsockets to remove some of the boilerplate required to create a websockets server or
+client.
 
 ## Examples
 
