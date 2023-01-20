@@ -29,9 +29,7 @@ jobs:
           $LINUX_BREW install libwebsockets
       - name: Build docs
         run: |
-          EVENT_CMAKE_OPTIONS="-DLIBWS_DOXYGEN=ON"
           mkdir -p build
           cd build
-          cmake ..
+          cmake .. -DLIBWS_DOXYGEN=ON -DLIBWS_UNIT_TESTING=OFF
           cmake --build .
-          make

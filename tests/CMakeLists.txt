@@ -38,18 +38,13 @@ message("CMOCKA_LIBRARY=${CMOCKA_LIBRARY}")
 
 include_directories(${CMOCKA_INCLUDE_DIR}
                     ${CMAKE_SOURCE_DIR}
-                    ${CMAKE_CURRENT_SOURCE_DIR})
+                    ${CMAKE_CURRENT_SOURCE_DIR}
+                    ${OPENSSL_INCLUDE_DIR}
+                    ${LWS_INCLUDE_DIRS})
 
 add_cmocka_test(libws-${_TEST}
-                SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/${_TEST}.c
+                SOURCES ${CMAKE_SOURCE_DIR}/ws.c ${CMAKE_CURRENT_SOURCE_DIR}/${_TEST}.c
                 COMPILE_OPTIONS ${DEFAULT_C_COMPILE_FLAGS}
                 LINK_LIBRARIES ${CMOCKA_LIBRARY} ${LWS_LINKS} ${LIBWS_STATIC_LIB}
 )
     
-target_include_directories(libws-${_TEST}
-    PRIVATE 
-        ${CMAKE_BINARY_DIR}
-        ${CMOCKA_BINARY_DIR})
-
-# Link cmocka
-add_dependencies(libws-${_TEST} cmocka)

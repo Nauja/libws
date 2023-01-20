@@ -31,7 +31,9 @@ typedef int (*ws_callback)(struct ws_client *client, enum ws_event event, void *
 #define RING_DEPTH 4096
 #define LIBWS_TRUE 1
 #define LIBWS_FALSE 0
+#ifndef LIBWS_BUFFER_SIZE
 #define LIBWS_BUFFER_SIZE 1024
+#endif
 #define LIBWS_UNUSED(x) (void)(x)
 
 #if defined(_MSC_VER)
@@ -85,6 +87,8 @@ typedef struct ws_client
 	uint16_t retry_count;		/* count of consequetive retries */
 	/* User data. */
 	void *user;
+	/* Next client. */
+	struct ws_client *next;
 } ws_client;
 
 typedef struct ws_vhd
@@ -119,6 +123,10 @@ typedef struct ws
 	int port;
 	/* User data to allocate per client. */
 	size_t per_client_data_size;
+	/* List of connected clients. */
+	ws_client clients;
+	/* Number of connected clients. */
+	size_t num_clients;
 } ws;
 
 static int ws_client_init(ws_client *client)
@@ -144,15 +152,22 @@ static int ws_client_init(ws_client *client)
 		return LIBWS_FALSE;
 	}
 
-	client->user = _LIBWS_MALLOC(client->ws->per_client_data_size);
-	if (!client->user)
+	if (client->ws->per_client_data_size > 0)
 	{
-		lws_ring_destroy(client->send_queue);
-		lws_ring_destroy(client->receive_queue);
-		return LIBWS_FALSE;
-	}
+		client->user = _LIBWS_MALLOC(client->ws->per_client_data_size);
+		if (!client->user)
+		{
+			lws_ring_destroy(client->send_queue);
+			lws_ring_destroy(client->receive_queue);
+			return LIBWS_FALSE;
+		}
 
-	memset(client->user, 0, client->ws->per_client_data_size);
+		memset(client->user, 0, client->ws->per_client_data_size);
+	}
+	else
+	{
+		client->user = NULL;
+	}
 
 	return LIBWS_TRUE;
 }
@@ -164,6 +179,30 @@ static void ws_client_delete(ws_client *client)
 	_LIBWS_FREE(client->user);
 }
 
+/* Add a client to the session. */
+static void ws_server_add_client(struct ws *server, ws_client *client)
+{
+	client->next = server->clients.next;
+	server->clients.next = client;
+	server->num_clients++;
+}
+
+/* Remove a client from the session. */
+static int ws_server_remove_client(struct ws *server, ws_client *client)
+{
+	for (ws_client *it = &server->clients; it != NULL; it = it->next)
+	{
+		if (it->next == client)
+		{
+			it->next = client->next;
+			server->num_clients--;
+			return LIBWS_TRUE;
+		}
+	}
+
+	return LIBWS_FALSE;
+}
+
 static void ws_try_connect(lws_sorted_usec_list *sul)
 {
 	ws_vhd *vhd = lws_container_of(sul, ws_vhd, sul);
@@ -173,7 +212,7 @@ static void ws_try_connect(lws_sorted_usec_list *sul)
 
 	lws_snprintf(host, sizeof(host), "%s:%u", ws->host, ws->port);
 
-	memset(&i, 0, sizeof(i));
+	memset(&i, 0, sizeof(struct lws_client_connect_info));
 
 	i.context = vhd->context;
 	i.port = ws->port;
@@ -187,24 +226,24 @@ static void ws_try_connect(lws_sorted_usec_list *sul)
 	// i.protocol = ;
 	i.pwsi = NULL;
 
-	lwsl_user("connecting to %s:%d/%s\n", i.address, i.port, i.path);
+	lwsl_debug("connecting to %s:%d/%s\n", i.address, i.port, i.path);
 
 	if (!lws_client_connect_via_info(&i))
 	{
 
-		lwsl_user("lws_client_connect_via_info failed\n");
+		lwsl_debug("lws_client_connect_via_info failed\n");
 		lws_sul_schedule(vhd->context, 0, &vhd->sul,
 						 ws_try_connect, 10 * LWS_US_PER_SEC);
 		return;
 	}
 
-	lwsl_user("lws_client_connect_via_info done\n");
+	lwsl_debug("lws_client_connect_via_info done\n");
 }
 
-#define LIBWS_CALLBACK(client, event)                             \
-	if (client->ws && client->ws->callback)                       \
-	{                                                             \
-		return client->ws->callback(client, event, client->user); \
+#define LIBWS_CALLBACK(ws, client, event)                                 \
+	if (ws && ws->callback)                                               \
+	{                                                                     \
+		return ws->callback(client, event, client ? client->user : NULL); \
 	}
 
 static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
@@ -213,6 +252,7 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 	ws_vhd *vhd = (ws_vhd *)
 		lws_protocol_vh_priv_get(lws_get_vhost(wsi),
 								 lws_get_protocol(wsi));
+	struct ws *ws = (struct ws *)lws_get_protocol(wsi)->user;
 	const ws_msg *write_packet;
 	ws_msg read_packet;
 	int m;
@@ -220,7 +260,7 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
-		lwsl_user("LWS_CALLBACK_PROTOCOL_INIT\n");
+		lwsl_debug("LWS_CALLBACK_PROTOCOL_INIT\n");
 
 		vhd = lws_protocol_vh_priv_zalloc(lws_get_vhost(wsi),
 										  lws_get_protocol(wsi),
@@ -230,23 +270,21 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
 		vhd->context = lws_get_context(wsi);
 		vhd->vhost = lws_get_vhost(wsi);
-		vhd->ws = (ws *)lws_get_protocol(wsi)->user;
+		vhd->ws = ws;
 
 		ws_try_connect(&vhd->sul);
 
 		break;
 
 	case LWS_CALLBACK_PROTOCOL_DESTROY:
-		lwsl_user("LWS_CALLBACK_PROTOCOL_DESTROY\n");
-
-		lws_sul_cancel(&vhd->sul);
+		lwsl_debug("LWS_CALLBACK_PROTOCOL_DESTROY\n");
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
-		lwsl_user("LWS_CALLBACK_CLIENT_ESTABLISHED\n");
+		lwsl_debug("LWS_CALLBACK_CLIENT_ESTABLISHED\n");
 
-		client->ws = (ws *)lws_get_protocol(wsi)->user;
+		client->ws = ws;
 		if (!ws_client_init(client))
 		{
 			return 1;
@@ -254,12 +292,12 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
 		client->wsi = wsi;
 
-		LIBWS_CALLBACK(client, LIBWS_EVENT_CONNECTED);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_CONNECTED);
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		lwsl_user("LWS_CALLBACK_CLIENT_WRITEABLE\n");
+		lwsl_debug("LWS_CALLBACK_CLIENT_WRITEABLE\n");
 
 		write_packet = lws_ring_get_element(client->send_queue, 0);
 		if (!write_packet)
@@ -278,18 +316,18 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 		lws_ring_consume(client->send_queue, NULL, NULL, 1);
 		lws_callback_on_writable(wsi);
 
-		LIBWS_CALLBACK(client, LIBWS_EVENT_SENT);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_SENT);
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
-		lwsl_user("LWS_CALLBACK_CLIENT_RECEIVE: %4d (rpp %5d)\n",
-				  (int)len, (int)lws_remaining_packet_payload(wsi));
+		lwsl_debug("LWS_CALLBACK_CLIENT_RECEIVE: %4d (rpp %5d)\n",
+				   (int)len, (int)lws_remaining_packet_payload(wsi));
 
 		/* notice we over-allocate by LWS_PRE */
 		if (len > LIBWS_BUFFER_SIZE)
 		{
-			lwsl_user("OOM: packet too large\n");
+			lwsl_debug("OOM: packet too large\n");
 			break;
 		}
 
@@ -298,22 +336,25 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 		read_packet.size = len;
 		lws_ring_insert(client->receive_queue, &read_packet, 1);
 
-		LIBWS_CALLBACK(client, LIBWS_EVENT_RECEIVED);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_RECEIVED);
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 		lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
-		vhd->client_wsi = NULL;
+		if (vhd)
+		{
+			vhd->client_wsi = NULL;
+		}
 
-		LIBWS_CALLBACK(client, LIBWS_EVENT_CONNECTION_ERROR);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_CONNECTION_ERROR);
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_CLOSED:
-		lwsl_user("LWS_CALLBACK_CLIENT_CLOSED\n");
+		lwsl_debug("LWS_CALLBACK_CLIENT_CLOSED\n");
 
-		LIBWS_CALLBACK(client, LIBWS_EVENT_CLOSED);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_CLOSED);
 
 		ws_client_delete(client);
 		break;
@@ -327,11 +368,101 @@ static int ws_client_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
 static int ws_server_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
-	LIBWS_UNUSED(wsi);
-	LIBWS_UNUSED(reason);
-	LIBWS_UNUSED(user);
-	LIBWS_UNUSED(in);
-	LIBWS_UNUSED(len);
+	ws_client *client = (ws_client *)user;
+	ws_vhd *vhd = (ws_vhd *)
+		lws_protocol_vh_priv_get(lws_get_vhost(wsi),
+								 lws_get_protocol(wsi));
+	struct ws *ws = (struct ws *)lws_get_protocol(wsi)->user;
+	const ws_msg *write_packet;
+	ws_msg read_packet;
+	int m;
+
+	switch (reason)
+	{
+	case LWS_CALLBACK_PROTOCOL_INIT:
+		lwsl_debug("LWS_CALLBACK_PROTOCOL_INIT\n");
+		vhd = lws_protocol_vh_priv_zalloc(lws_get_vhost(wsi),
+										  lws_get_protocol(wsi),
+										  sizeof(ws_vhd));
+		if (!vhd)
+			return -1;
+
+		vhd->context = lws_get_context(wsi);
+		vhd->vhost = lws_get_vhost(wsi);
+		vhd->ws = ws;
+
+		break;
+
+	case LWS_CALLBACK_ESTABLISHED:
+		/* generate a block of output before travis times us out */
+		lwsl_debug("LWS_CALLBACK_ESTABLISHED\n");
+		client->ws = ws;
+
+		if (!ws_client_init(client))
+		{
+			return 1;
+		}
+
+		client->wsi = wsi;
+
+		ws_server_add_client(ws, client);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_CONNECTED);
+		break;
+
+	case LWS_CALLBACK_SERVER_WRITEABLE:
+		lwsl_debug("LWS_CALLBACK_SERVER_WRITEABLE\n");
+
+		write_packet = lws_ring_get_element(client->send_queue, 0);
+		if (!write_packet)
+		{
+			break;
+		}
+
+		/* Notice we allowed for LWS_PRE in the payload already */
+		m = lws_write(wsi, (unsigned char *)&write_packet->data[LWS_PRE], write_packet->size, LWS_WRITE_BINARY);
+		if (m < (int)write_packet->size)
+		{
+			lwsl_err("ERROR %d writing to ws socket\n", m);
+			return -1;
+		}
+
+		lws_ring_consume(client->send_queue, NULL, NULL, 1);
+		lws_callback_on_writable(wsi);
+
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_SENT);
+
+		break;
+
+	case LWS_CALLBACK_RECEIVE:
+		lwsl_debug("LWS_CALLBACK_RECEIVE: %4d (rpp %5d)\n",
+				   (int)len, (int)lws_remaining_packet_payload(wsi));
+
+		/* notice we over-allocate by LWS_PRE */
+		if (len > LIBWS_BUFFER_SIZE)
+		{
+			lwsl_debug("OOM: packet too large\n");
+			break;
+		}
+
+		/* Copy incoming data to read buffer */
+		memcpy(read_packet.data, in, len);
+		read_packet.size = len;
+		lws_ring_insert(client->receive_queue, &read_packet, 1);
+
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_RECEIVED);
+
+		break;
+
+	case LWS_CALLBACK_CLOSED:
+		lwsl_debug("LWS_CALLBACK_CLOSED\n");
+		ws_server_remove_client(ws, client);
+		LIBWS_CALLBACK(ws, client, LIBWS_EVENT_CLOSED);
+		break;
+
+	default:
+		break;
+	}
+
 	return 0;
 }
 
@@ -375,6 +506,8 @@ ws_connect(const ws_connect_options *options)
 	ws->path = options->path;
 	ws->host = options->host;
 	ws->port = options->port;
+	ws->callback = options->callback;
+	ws->per_client_data_size = options->per_client_data_size;
 
 	return ws;
 }
@@ -387,7 +520,6 @@ ws_listen(const ws_listen_options *options)
 	{
 		return NULL;
 	}
-
 	lws_protocols protocols[] = {
 		{"ws", ws_server_callback, sizeof(ws_client), LIBWS_RX_SIZE, 0, (void *)ws, 0},
 		{NULL, NULL, 0, 0, 0, NULL, 0} /* terminator */
@@ -405,8 +537,46 @@ ws_listen(const ws_listen_options *options)
 	}
 
 	ws->port = lws_get_vhost_listen_port(ws->vhost);
+	ws->callback = options->callback;
+	ws->per_client_data_size = options->per_client_data_size;
 
 	return ws;
+}
+
+LIBWS_PUBLIC(int)
+ws_get_port(struct ws *ws)
+{
+	return ws ? ws->port : -1;
+}
+
+LIBWS_PUBLIC(ws_client *)
+ws_get_client(struct ws *ws, size_t index)
+{
+	if (index >= ws->num_clients)
+	{
+		return NULL;
+	}
+
+	ws_client *client = &ws->clients;
+	while (client && index > 0)
+	{
+		client = client->next;
+		--index;
+	}
+
+	return client;
+}
+
+LIBWS_PUBLIC(size_t)
+ws_get_num_clients(const struct ws *ws)
+{
+	return ws->num_clients;
+}
+
+LIBWS_PUBLIC(struct ws *)
+ws_get_websocket(const ws_client *client)
+{
+	return client->ws;
 }
 
 LIBWS_PUBLIC(void)
@@ -418,9 +588,9 @@ ws_send(ws_client *client, const void *buf, size_t size)
 		return;
 	}
 
-	if (size > msg.size)
+	if (size > LIBWS_BUFFER_SIZE)
 	{
-		lwsl_err("Packet too large to send %ld > %ld, try increase LIBWS_BUFFER_SIZE\n", size, msg.size);
+		lwsl_err("Packet too large to send %ld > %d, try increase LIBWS_BUFFER_SIZE\n", size, LIBWS_BUFFER_SIZE);
 		return;
 	}
 
