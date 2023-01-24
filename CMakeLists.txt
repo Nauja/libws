@@ -1,11 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
  
-if (MSVC)
-list(APPEND LIBWS_COMPILE_FLAGS /W4 /WX)
-else()
-list(APPEND LIBWS_COMPILE_FLAGS -Wall -Wextra -pedantic -Werror)
-endif()
- 
 # Specify search path for CMake modules to be loaded by include() 
 # and find_package()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
@@ -13,7 +7,7 @@ message("${CMAKE_ARGS}")
 
 set(LIBWS_VERSION_MAJOR 0)
 set(LIBWS_VERSION_MINOR 1)
-set(LIBWS_VERSION_PATCH 0)
+set(LIBWS_VERSION_PATCH 1)
 set(LIBWS_VERSION "${LIBWS_VERSION_MAJOR}.${LIBWS_VERSION_MINOR}.${LIBWS_VERSION_PATCH}")
 
 #find_package(Git)
@@ -50,6 +44,12 @@ if(Git_FOUND)
 endif()
 
 project(libws VERSION ${LIBWS_VERSION} LANGUAGES C)
+
+if (MSVC)
+list(APPEND LIBWS_COMPILE_FLAGS /W4 /WX)
+else()
+list(APPEND LIBWS_COMPILE_FLAGS -Wall -Wextra -pedantic -Werror)
+endif()
 
 include(ConfigureChecks)
 

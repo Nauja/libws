@@ -11,7 +11,7 @@ extern "C"
 /** Minor version of libws. */
 #define LIBWS_VERSION_MINOR 1
 /** Patch version of libws. */
-#define LIBWS_VERSION_PATCH 0
+#define LIBWS_VERSION_PATCH 1
 
 /* Define to 1 if you have the <dirent.h> header file. */
 #ifndef HAVE_DIRENT_H
